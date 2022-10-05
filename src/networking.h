@@ -24,6 +24,11 @@ namespace net {
     typedef int SockHandle_t;
 #endif
 
+    enum SocketType {
+        SOCKET_TYPE_TCP,
+        SOCKET_TYPE_UDP
+    };
+
     class Socket {
     public:
         Socket(SockHandle_t sock, struct sockaddr_in* raddr = NULL);
@@ -33,6 +38,12 @@ namespace net {
          * Close socket. The socket can no longer be used after this.
          */
         void close();
+
+        /**
+         * Get socket type. Either TCP or UDP.
+         * @return Socket type.
+         */
+        SocketType type();
 
         /**
          * Send data on socket.
@@ -53,10 +64,11 @@ namespace net {
          * Receive data from socket.
          * @param data Buffer to read the data into.
          * @param maxLen Maximum number of bytes to read.
+         * @param forceLen Read the maximum number of bytes even if it requires multiple receive operations.
          * @param timeout Timeout in milliseconds. 0 means no timeout.
-         * @return Number of bytes read
+         * @return Number of bytes read. 0 means timed out
          */
-        int recv(uint8_t* data, size_t maxLen, int timeout = 0);
+        int recv(uint8_t* data, size_t maxLen, bool forceLen = false, int timeout = 0);
 
     private:
         std::recursive_mutex mtx;
@@ -79,9 +91,9 @@ namespace net {
         /**
          * Accept connection.
          * @param timeout Timeout in milliseconds. 0 means no timeout.
-         * @return Socket of the connection
+         * @return Socket of the connection. NULL means timed out.
          */
-        std::shared_ptr<Socket> accept(int timeout);
+        std::shared_ptr<Socket> accept(int timeout = 0);
 
     private:
         std::recursive_mutex mtx;
@@ -91,13 +103,8 @@ namespace net {
     };
 
     /**
-     * Initialize networking library. No need to call manually, functions that need it call it.
-     */
-    void init();
-
-    /**
      * Create TCP listener.
-     * @param host Hostname or IP to listen on.
+     * @param host Hostname or IP to listen on ("0.0.0.0" for Any).
      * @param port Port to listen on.
      * @return Listener instance on success, null otherwise.
      */
@@ -120,11 +127,4 @@ namespace net {
      * @return Socket instance on success, null otherwise.
      */
     std::shared_ptr<Socket> openudp(std::string rhost, int rport, std::string lhost = "0.0.0.0", int lport = 0);
-
-    /**
-     * Get IP address in uint32 form associated with a hostname or parse IP address.
-     * @param addr Pointer to uint32 that will store the address if successful
-     * @return True on success, false otherwise.
-     */    
-    bool queryHost(uint32_t* addr, std::string host);
 }

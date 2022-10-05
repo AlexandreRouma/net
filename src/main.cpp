@@ -2,26 +2,29 @@
 #include "networking.h"
 #include <string.h>
 
-#pragma pack(push, 1)
-struct DNSHeader {
-    uint16_t id;
-    uint16_t flags;
-    uint16_t qdCount;
-    uint16_t anCount;
-    uint16_t nsCount;
-    uint16_t arCount;
-};
-#pragma pack(pop)
-
 int main() {
-    auto client = net::connect("example.com", 80);
+    // auto client = net::connect("example.com", 80);
 
-    client->sendstr("GET /index.html HTTP/1.1\n");
-    client->sendstr("Host: example.com\n");
-    client->sendstr("\n");
+    // client->sendstr("GET /index.html HTTP/1.1\n");
+    // client->sendstr("Host: example.com\n");
+    // client->sendstr("\n");
 
-    Sleep(5000);
+    // Sleep(5000);
 
-    printf("Success\n");
+    // printf("Success\n");
+
+    try {
+        auto client = net::openudp("8.8.8.8", 53);
+        if (client->type() == net::SOCKET_TYPE_UDP) {
+            printf("I'm a UDP socket!\n");
+        }
+        else {
+            printf("I'm a TCP socket!\n");
+        }
+    }
+    catch (std::exception e) {
+        fprintf(stderr, "Error: %s\n", e.what());
+    }
+    
     return 0;
 }

@@ -4,6 +4,8 @@
 namespace net {
     bool _init = false;
     
+    // === Private functions ===
+
     void init() {
         if (_init) { return; }
 #ifdef _WIN32
@@ -19,6 +21,23 @@ namespace net {
 #endif
         _init = true;
     }
+
+    bool queryHost(uint32_t* addr, std::string host) {
+        hostent* ent = gethostbyname(host.c_str());
+        if (!ent || !ent->h_addr_list[0]) { return false; }
+        *addr = *(uint32_t*)ent->h_addr_list[0];
+        return true;
+    }
+
+    void closeSocket(SockHandle_t sock) {
+#ifdef _WIN32
+        closesocket(sock);
+#else
+        close(sock);
+#endif
+    }
+
+    // === Socket functions ===
 
     Socket::Socket(SockHandle_t sock, struct sockaddr_in* raddr) {
         this->sock = sock;
@@ -37,11 +56,11 @@ namespace net {
         std::lock_guard<std::recursive_mutex> lck(mtx);
         if (!open) { return; }
         open = false;
-#ifdef _WIN32
-            closesocket(sock);
-#else
-            close(sock);
-#endif
+        closeSocket(sock);
+    }
+
+    SocketType Socket::type() {
+        return raddr ? SOCKET_TYPE_UDP : SOCKET_TYPE_TCP;
     }
 
     int Socket::send(const uint8_t* data, size_t len) {
@@ -52,7 +71,46 @@ namespace net {
         return send((const uint8_t*)str.c_str(), str.length());
     }
 
-    int Socket::recv(uint8_t* data, size_t maxLen, int timeout) {
+    int Socket::recv(uint8_t* data, size_t maxLen, bool forceLen, int timeout) {
+        // Create FD set
+        fd_set set;
+        FD_ZERO(&set);
+        FD_SET(sock, &set);
+
+        // Define timeout
+        timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = timeout * 1000;
+
+        size_t read = 0;
+        do {
+            // Wait for data or error
+            int err = select(sock+1, &set, NULL, &set, timeout ? &tv : NULL);
+            if (err <= 0) { return err; }
+
+            // Receive
+            err = ::recv(sock, (char*)&data[read], maxLen - read, 0);
+            if (err <= 0) { return err; }
+            read += err;
+        }
+        while (forceLen && read < maxLen);
+    }
+
+    // === Listener functions ===
+
+    Listener::Listener(SockHandle_t sock) {
+        this->sock = sock;
+    }
+
+    Listener::~Listener() {
+        stop();
+    }
+
+    void Listener::stop() {
+        closeSocket(sock);
+    }
+
+    std::shared_ptr<Socket> Listener::accept(int timeout) {
         // Create FD set
         fd_set set;
         FD_ZERO(&set);
@@ -65,10 +123,57 @@ namespace net {
 
         // Wait for data or error
         int err = select(sock+1, &set, NULL, &set, timeout ? &tv : NULL);
-        if (err <= 0) { return err; }
+        if (err <= 0) { return NULL; }
 
-        // Receive
-        return ::recv(sock, (char*)data, maxLen, 0);
+        // Accept
+        SockHandle_t s = ::accept(sock, NULL, 0);
+        // TODO: Check socket
+        return std::make_shared<Socket>(s);
+    }
+
+    // === Creation functions ===
+
+    std::shared_ptr<Listener> listen(std::string host, int port) {
+        // Init library if needed
+        init();
+
+        // Get host address
+        struct sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(port);
+        if (!queryHost((uint32_t*)&addr.sin_addr.s_addr, host)) { return NULL; }
+
+        // Create socket
+        SockHandle_t s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+#ifndef _WIN32
+        // Allow port reusing if the app was killed or crashed
+        // and the socket is stuck in TIME_WAIT state.
+        // This option has a different meaning on Windows,
+        // so we use it only for non-Windows systems
+        int enable = 1;
+        if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0) {
+            closeSocket(s);
+            throw std::runtime_error("Could not configure socket");
+            return NULL;
+        }
+#endif
+
+        // Bind socket to the port
+        if (bind(s, (sockaddr*)&addr, sizeof(addr))) {
+            closeSocket(s);
+            throw std::runtime_error("Could not bind socket");
+            return NULL;
+        }
+
+        // Enable listening
+        if (::listen(s, SOMAXCONN) != 0) {
+            throw std::runtime_error("Could start listening for connections");
+            return NULL;
+        }
+
+        // Return listener class
+        return std::make_shared<Listener>(s);
     }
 
     std::shared_ptr<Socket> connect(std::string host, int port) {
@@ -86,11 +191,8 @@ namespace net {
 
         // Connect to server
         if (::connect(s, (sockaddr*)&addr, sizeof(addr))) {
-#ifdef _WIN32
-            closesocket(s);
-#else
-            close(s);
-#endif
+            closeSocket(s);
+            throw std::runtime_error("Could not connect");
             return NULL;
         }
 
@@ -98,7 +200,7 @@ namespace net {
         return std::make_shared<Socket>(s);
     }
 
-    std::shared_ptr<Socket> udp(std::string rhost, int rport, std::string lhost, int lport) {
+    std::shared_ptr<Socket> openudp(std::string rhost, int rport, std::string lhost, int lport) {
         // Init library if needed
         init();
 
@@ -119,22 +221,12 @@ namespace net {
 
         // Bind socket to local port
         if (bind(s, (sockaddr*)&laddr, sizeof(laddr))) {
-#ifdef _WIN32
-            closesocket(s);
-#else
-            close(s);
-#endif
+            closeSocket(s);
+            throw std::runtime_error("Could not bind socket");
             return NULL;
         }
         
         // Return socket class
         return std::make_shared<Socket>(s, &raddr);
-    }
-
-    bool queryHost(uint32_t* addr, std::string host) {
-        hostent* ent = gethostbyname(host.c_str());
-        if (!ent || !ent->h_addr_list[0]) { return false; }
-        *addr = *(uint32_t*)ent->h_addr_list[0];
-        return true;
     }
 }
