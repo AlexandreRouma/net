@@ -25,7 +25,10 @@ namespace net {
     typedef int SockHandle_t;
 #endif
 
-    const int TIMEOUT_NONBLOCK = -1;
+    enum {
+        NO_TIMEOUT  = -1,
+        NONBLOCKING = 0
+    };
 
     enum SocketType {
         SOCKET_TYPE_TCP,
@@ -74,19 +77,19 @@ namespace net {
          * @param data Buffer to read the data into.
          * @param maxLen Maximum number of bytes to read.
          * @param forceLen Read the maximum number of bytes even if it requires multiple receive operations.
-         * @param timeout Timeout in milliseconds. 0 means no timeout, -1 means nonblocking.
-         * @return Number of bytes read. 0 means timed out or closed.
+         * @param timeout Timeout in milliseconds. Use NO_TIMEOUT or NONBLOCKING here if needed.
+         * @return Number of bytes read. 0 means timed out or closed. -1 means would block or error.
          */
-        int recv(uint8_t* data, size_t maxLen, bool forceLen = false, int timeout = 0);
+        int recv(uint8_t* data, size_t maxLen, bool forceLen = false, int timeout = NO_TIMEOUT);
 
         /**
          * Receive line from socket.
          * @param str String to read the data into.
          * @param maxLen Maximum line length allowed, 0 for no limit.
-         * @param timeout Timeout in milliseconds. 0 means no timeout.
-         * @return Length of the returned string. 0 means timed out or closed.
+         * @param timeout Timeout in milliseconds.  Use NO_TIMEOUT or NONBLOCKING here if needed.
+         * @return Length of the returned string. 0 means timed out or closed. -1 means would block or error.
          */
-        int recvline(std::string& str, int maxLen = 0, int timeout = 0);
+        int recvline(std::string& str, int maxLen = 0, int timeout = NO_TIMEOUT);
 
     private:
         std::recursive_mutex mtx;
@@ -113,7 +116,7 @@ namespace net {
          * @param timeout Timeout in milliseconds. 0 means no timeout.
          * @return Socket of the connection. NULL means timed out or closed.
          */
-        std::shared_ptr<Socket> accept(int timeout = 0);
+        std::shared_ptr<Socket> accept(int timeout = NO_TIMEOUT);
 
     private:
         std::recursive_mutex mtx;

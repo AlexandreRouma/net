@@ -1,6 +1,12 @@
 #include "networking.h"
 #include <string.h>
 
+#ifdef _WIN32
+#define WOULD_BLOCK (WSAGetLastError() == WSAEWOULDBLOCK)
+#else
+#define WOULD_BLOCK (errno == EWOULDBLOCK)
+#endif
+
 namespace net {
     bool _init = false;
     
@@ -87,22 +93,23 @@ namespace net {
         tv.tv_usec = timeout * 1000;
 
         int read = 0;
+        bool blocking = (timeout != NONBLOCKING);
         do {
             // Wait for data or error if 
-            if (timeout >= 0) {
-                int err = select(sock+1, &set, NULL, &set, timeout ? &tv : NULL);
+            if (blocking) {
+                int err = select(sock+1, &set, NULL, &set, (timeout > 0) ? &tv : NULL);
                 if (err <= 0) { return err; }
             }
 
             // Receive
             int err = ::recv(sock, (char*)&data[read], maxLen - read, 0);
-            if (err <= 0 && errno && errno != EWOULDBLOCK) {
+            if (err <= 0 && !WOULD_BLOCK) {
                 close();
                 return err;
             }
             read += err;
         }
-        while (timeout >= 0 && forceLen && read < maxLen);
+        while (blocking && forceLen && read < maxLen);
         return read;
     }
 
@@ -155,7 +162,8 @@ namespace net {
         tv.tv_usec = timeout * 1000;
 
         // Wait for data or error
-        int err = select(sock+1, &set, NULL, &set, timeout ? &tv : NULL);
+        // TODO: Support non-blockign mode
+        int err = select(sock+1, &set, NULL, &set, (timeout > 0) ? &tv : NULL);
         if (err <= 0) { return NULL; }
 
         // Accept
@@ -164,6 +172,14 @@ namespace net {
             stop();
             return NULL;
         }
+
+        // Enable nonblocking mode
+#ifdef _WIN32
+        u_long enabled = 1;
+        ioctlsocket(s, FIONBIO, &enabled);
+#else
+        fcntl(s, F_SETFL, O_NONBLOCK);
+#endif
 
         return std::make_shared<Socket>(s);
     }
@@ -182,6 +198,7 @@ namespace net {
 
         // Create socket
         SockHandle_t s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        // TODO: Support non-blockign mode
 
 #ifndef _WIN32
         // Allow port reusing if the app was killed or crashed
@@ -234,7 +251,12 @@ namespace net {
         }
 
         // Enable nonblocking mode
+#ifdef _WIN32
+        u_long enabled = 1;
+        ioctlsocket(s, FIONBIO, &enabled);
+#else
         fcntl(s, F_SETFL, O_NONBLOCK);
+#endif
 
         // Return socket class
         return std::make_shared<Socket>(s);
