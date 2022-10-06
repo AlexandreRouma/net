@@ -3,28 +3,16 @@
 #include <string.h>
 
 int main() {
-    // auto client = net::connect("example.com", 80);
-
-    // client->sendstr("GET /index.html HTTP/1.1\n");
-    // client->sendstr("Host: example.com\n");
-    // client->sendstr("\n");
-
-    // Sleep(5000);
-
-    // printf("Success\n");
-
     try {
-        auto client = net::openudp("8.8.8.8", 53);
-        if (client->type() == net::SOCKET_TYPE_UDP) {
-            printf("I'm a UDP socket!\n");
-        }
-        else {
-            printf("I'm a TCP socket!\n");
-        }
+        auto client = net::connect("localhost", 1234);
+        
+        uint8_t dummy[128];
+        int ret = client->recv(dummy, 128, false, net::TIMEOUT_NONBLOCK);
+
+        printf("%d, %s\n", ret, client->isOpen() ? "Y" : "N");
     }
-    catch (std::exception e) {
+    catch (std::runtime_error& e) {
         fprintf(stderr, "Error: %s\n", e.what());
     }
-    
     return 0;
 }

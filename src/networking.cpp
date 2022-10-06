@@ -59,6 +59,10 @@ namespace net {
         closeSocket(sock);
     }
 
+    bool Socket::isOpen() {
+        return open;
+    }
+
     SocketType Socket::type() {
         return raddr ? SOCKET_TYPE_UDP : SOCKET_TYPE_TCP;
     }
@@ -82,18 +86,42 @@ namespace net {
         tv.tv_sec = 0;
         tv.tv_usec = timeout * 1000;
 
-        size_t read = 0;
+        int read = 0;
         do {
-            // Wait for data or error
-            int err = select(sock+1, &set, NULL, &set, timeout ? &tv : NULL);
-            if (err <= 0) { return err; }
+            // Wait for data or error if 
+            if (timeout >= 0) {
+                int err = select(sock+1, &set, NULL, &set, timeout ? &tv : NULL);
+                if (err <= 0) { return err; }
+            }
 
             // Receive
-            err = ::recv(sock, (char*)&data[read], maxLen - read, 0);
-            if (err <= 0) { return err; }
+            int err = ::recv(sock, (char*)&data[read], maxLen - read, 0);
+            if (err <= 0 && errno && errno != EWOULDBLOCK) {
+                close();
+                return err;
+            }
             read += err;
         }
-        while (forceLen && read < maxLen);
+        while (timeout >= 0 && forceLen && read < maxLen);
+        return read;
+    }
+
+    int Socket::recvline(std::string& str, int maxLen, int timeout) {
+        // Disallow nonblocking mode
+        if (timeout < 0) { return -1; }
+        
+        str.clear();
+        int read = 0;
+        while (true) {
+            char c;
+            int err = recv((uint8_t*)&c, 1, timeout);
+            if (err <= 0) { return err; }
+            if (c == '\n') { break; }
+            str += c;
+            read++;
+            if (maxLen && read >= maxLen) { break; }
+        }
+        return read;
     }
 
     // === Listener functions ===
@@ -108,6 +136,11 @@ namespace net {
 
     void Listener::stop() {
         closeSocket(sock);
+        open = false;
+    }
+
+    bool Listener::listening() {
+        return open;
     }
 
     std::shared_ptr<Socket> Listener::accept(int timeout) {
@@ -127,7 +160,11 @@ namespace net {
 
         // Accept
         SockHandle_t s = ::accept(sock, NULL, 0);
-        // TODO: Check socket
+        if (!s) {
+            stop();
+            return NULL;
+        }
+
         return std::make_shared<Socket>(s);
     }
 
@@ -195,6 +232,9 @@ namespace net {
             throw std::runtime_error("Could not connect");
             return NULL;
         }
+
+        // Enable nonblocking mode
+        fcntl(s, F_SETFL, O_NONBLOCK);
 
         // Return socket class
         return std::make_shared<Socket>(s);

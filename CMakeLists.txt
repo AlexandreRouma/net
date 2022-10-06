@@ -7,4 +7,6 @@ add_executable(net ${SRC})
 
 if(WIN32)
     target_link_libraries(net PRIVATE wsock32 ws2_32)
+else()
+    target_compile_options(net PRIVATE -Wall -pedantic)
 endif()

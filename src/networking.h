@@ -15,6 +15,7 @@
 #include <netdb.h>
 #include <signal.h>
 #include <poll.h>
+#include <fcntl.h>
 #endif
 
 namespace net {
@@ -23,6 +24,8 @@ namespace net {
 #else
     typedef int SockHandle_t;
 #endif
+
+    const int TIMEOUT_NONBLOCK = -1;
 
     enum SocketType {
         SOCKET_TYPE_TCP,
@@ -38,6 +41,12 @@ namespace net {
          * Close socket. The socket can no longer be used after this.
          */
         void close();
+
+        /**
+         * Check if the socket is open.
+         * @return True if open, false if closed.
+         */
+        bool isOpen();
 
         /**
          * Get socket type. Either TCP or UDP.
@@ -65,10 +74,19 @@ namespace net {
          * @param data Buffer to read the data into.
          * @param maxLen Maximum number of bytes to read.
          * @param forceLen Read the maximum number of bytes even if it requires multiple receive operations.
-         * @param timeout Timeout in milliseconds. 0 means no timeout.
-         * @return Number of bytes read. 0 means timed out
+         * @param timeout Timeout in milliseconds. 0 means no timeout, -1 means nonblocking.
+         * @return Number of bytes read. 0 means timed out or closed.
          */
         int recv(uint8_t* data, size_t maxLen, bool forceLen = false, int timeout = 0);
+
+        /**
+         * Receive line from socket.
+         * @param str String to read the data into.
+         * @param maxLen Maximum line length allowed, 0 for no limit.
+         * @param timeout Timeout in milliseconds. 0 means no timeout.
+         * @return Length of the returned string. 0 means timed out or closed.
+         */
+        int recvline(std::string& str, int maxLen = 0, int timeout = 0);
 
     private:
         std::recursive_mutex mtx;
@@ -88,10 +106,12 @@ namespace net {
          */
         void stop();
 
+        bool listening();
+
         /**
          * Accept connection.
          * @param timeout Timeout in milliseconds. 0 means no timeout.
-         * @return Socket of the connection. NULL means timed out.
+         * @return Socket of the connection. NULL means timed out or closed.
          */
         std::shared_ptr<Socket> accept(int timeout = 0);
 
