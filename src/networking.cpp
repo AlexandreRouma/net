@@ -39,6 +39,7 @@ namespace net {
 #ifdef _WIN32
         closesocket(sock);
 #else
+        shutdown(sock, SHUT_RDWR);
         close(sock);
 #endif
     }
@@ -59,7 +60,6 @@ namespace net {
     }
 
     void Socket::close() {
-        std::lock_guard<std::recursive_mutex> lck(mtx);
         if (!open) { return; }
         open = false;
         closeSocket(sock);

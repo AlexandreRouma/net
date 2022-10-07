@@ -92,7 +92,6 @@ namespace net {
         int recvline(std::string& str, int maxLen = 0, int timeout = NO_TIMEOUT);
 
     private:
-        std::recursive_mutex mtx;
         struct sockaddr_in* raddr = NULL;
         SockHandle_t sock;
         bool open = true;
@@ -109,6 +108,10 @@ namespace net {
          */
         void stop();
 
+        /**
+         * CHeck if the listener is still listening.
+         * @return True if listening, false if not.
+         */
         bool listening();
 
         /**
@@ -119,7 +122,6 @@ namespace net {
         std::shared_ptr<Socket> accept(int timeout = NO_TIMEOUT);
 
     private:
-        std::recursive_mutex mtx;
         SockHandle_t sock;
         bool open = true;
 
