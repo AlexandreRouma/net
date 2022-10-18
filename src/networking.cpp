@@ -270,13 +270,19 @@ namespace net {
         struct sockaddr_in laddr;
         laddr.sin_family = AF_INET;
         laddr.sin_port = htons(lport);
-        if (!queryHost((uint32_t*)&laddr.sin_addr.s_addr, lhost)) { return NULL; }
+        if (!queryHost((uint32_t*)&laddr.sin_addr.s_addr, lhost)) {
+            throw std::runtime_error("Could not locate local host");
+            return NULL;
+        }
 
         // Get remote address
         struct sockaddr_in raddr;
         raddr.sin_family = AF_INET;
         raddr.sin_port = htons(rport);
-        if (!queryHost((uint32_t*)&raddr.sin_addr.s_addr, rhost)) { return NULL; }
+        if (!queryHost((uint32_t*)&raddr.sin_addr.s_addr, rhost)) {
+            throw std::runtime_error("Could not locate remote host");
+            return NULL;
+        }
 
         // Create socket
         SockHandle_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
