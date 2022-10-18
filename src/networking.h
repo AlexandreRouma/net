@@ -24,6 +24,30 @@ namespace net {
 #else
     typedef int SockHandle_t;
 #endif
+    typedef uint32_t IP_t;
+
+    class Socket;
+    class Listener;
+
+    class Address {
+        friend Socket;
+        friend Listener;
+    public:
+        Address();
+        Address(const std::string& host, int port);
+        Address(IP_t ip, int port);
+
+        std::string getIPString();
+        IP_t getIP();
+        void setIP(IP_t ip);
+
+        int getPort();
+        void setPort(int port);
+
+    private:
+        struct sockaddr_in addr;
+
+    };
 
     enum {
         NO_TIMEOUT  = -1,
@@ -37,6 +61,9 @@ namespace net {
 
     class Socket {
     public:
+        /**
+         * Do not instantiate this class manually. Use the provided functions.
+         */
         Socket(SockHandle_t sock, struct sockaddr_in* raddr = NULL);
         ~Socket();
 
@@ -61,16 +88,18 @@ namespace net {
          * Send data on socket.
          * @param data Data to be sent.
          * @param len Number of bytes to be sent.
+         * @param dest Destination address. NULL to use the default remote address.
          * @return Number of bytes sent.
          */
-        int send(const uint8_t* data, size_t len);
+        int send(const uint8_t* data, size_t len, const Address* dest = NULL);
 
         /**
          * Send string on socket. Terminating null byte is not sent, include one in the string if you need it.
          * @param str String to be sent.
+         * @param dest Destination address. NULL to use the default remote address.
          * @return Number of bytes sent.
          */
-        int sendstr(const std::string& str);
+        int sendstr(const std::string& str, const Address* dest = NULL);
 
         /**
          * Receive data from socket.
@@ -100,6 +129,9 @@ namespace net {
 
     class Listener {
     public:
+        /**
+         * Do not instantiate this class manually. Use the provided functions.
+         */
         Listener(SockHandle_t sock);
         ~Listener();
 
@@ -119,7 +151,7 @@ namespace net {
          * @param timeout Timeout in milliseconds. 0 means no timeout.
          * @return Socket of the connection. NULL means timed out or closed.
          */
-        std::shared_ptr<Socket> accept(int timeout = NO_TIMEOUT);
+        std::shared_ptr<Socket> accept(Address* dest = NULL, int timeout = NO_TIMEOUT);
 
     private:
         SockHandle_t sock;

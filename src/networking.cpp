@@ -44,6 +44,46 @@ namespace net {
 #endif
     }
 
+    // === Address functions ===
+
+    Address::Address() {
+        memset(&addr, 0, sizeof(addr));
+    }
+
+    Address::Address(const std::string& host, int port) {
+        // WARNING: WHEN PASING HOST, USE htonl SINCE THE OTHER CONSTRUCTOR EXPECTS HOST ENDIANESS
+    }
+
+    Address::Address(IP_t ip, int port) {
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(ip);
+        addr.sin_port = htons(port);
+    }
+
+    std::string Address::getIPString() {
+        char buf[128];
+        IP_t ip = getIP();
+        sprintf(buf, "%d.%d.%d.%d", (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
+        return buf;
+    }
+
+    IP_t Address::getIP() {
+        return htonl(addr.sin_addr.s_addr);
+    }
+
+    void Address::setIP(IP_t ip) {
+        addr.sin_addr.s_addr = htonl(ip);
+    }
+
+    int Address::getPort() {
+        return htons(addr.sin_port);
+    }
+
+    void Address::setPort(int port) {
+        addr.sin_port = htons(port);
+    }
+
     // === Socket functions ===
 
     Socket::Socket(SockHandle_t sock, struct sockaddr_in* raddr) {
@@ -73,12 +113,12 @@ namespace net {
         return raddr ? SOCKET_TYPE_UDP : SOCKET_TYPE_TCP;
     }
 
-    int Socket::send(const uint8_t* data, size_t len) {
-        return sendto(sock, (const char*)data, len, 0, (sockaddr*)raddr, sizeof(sockaddr_in));
+    int Socket::send(const uint8_t* data, size_t len, const Address* dest) {
+        return sendto(sock, (const char*)data, len, 0, (sockaddr*)(dest ? &dest->addr : raddr), sizeof(sockaddr_in));
     }
 
-    int Socket::sendstr(const std::string& str) {
-        return send((const uint8_t*)str.c_str(), str.length());
+    int Socket::sendstr(const std::string& str, const Address* dest) {
+        return send((const uint8_t*)str.c_str(), str.length(), dest);
     }
 
     int Socket::recv(uint8_t* data, size_t maxLen, bool forceLen, int timeout) {
@@ -150,7 +190,7 @@ namespace net {
         return open;
     }
 
-    std::shared_ptr<Socket> Listener::accept(int timeout) {
+    std::shared_ptr<Socket> Listener::accept(Address* dest, int timeout) {
         // Create FD set
         fd_set set;
         FD_ZERO(&set);
@@ -167,7 +207,8 @@ namespace net {
         if (err <= 0) { return NULL; }
 
         // Accept
-        SockHandle_t s = ::accept(sock, NULL, 0);
+        int addrLen = sizeof(sockaddr_in);
+        SockHandle_t s = ::accept(sock, (sockaddr*)(dest ? &dest->addr : NULL), &addrLen);
         if (!s) {
             stop();
             return NULL;

@@ -7,17 +7,13 @@
 
 int main() {
     try {
-        auto sock = net::openudp("192.168.0.255", 1024);
+        auto server = net::listen("0.0.0.0", 1024);
+        net::Address clientAddr;
+        auto client = server->accept(&clientAddr);
 
-        uint8_t data[60];
-        memset(data, 0, sizeof(data));
+        printf("Client: %s:%d\n", clientAddr.getIPString().c_str(), clientAddr.getPort());
 
-        *(uint16_t*)&data[0] = htons(0xEFFE);
-        data[2] = 0x02;
-
-        sock->send(data, sizeof(data));
-
-        Sleep(1000);
+        client->close();
     }
     catch (std::runtime_error& e) {
         fprintf(stderr, "Error: %s\n", e.what());
