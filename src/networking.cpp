@@ -51,7 +51,20 @@ namespace net {
     }
 
     Address::Address(const std::string& host, int port) {
-        // WARNING: WHEN PASING HOST, USE htonl SINCE THE OTHER CONSTRUCTOR EXPECTS HOST ENDIANESS
+        // Initialize WSA if needed
+        init();
+        
+        // Lookup host
+        hostent* ent = gethostbyname(host.c_str());
+        if (!ent || !ent->h_addr_list[0]) {
+            throw std::runtime_error("Unknown host");
+        }
+        
+        // Build address
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = *(uint32_t*)ent->h_addr_list[0];
+        addr.sin_port = htons(port);
     }
 
     Address::Address(IP_t ip, int port) {
@@ -86,17 +99,16 @@ namespace net {
 
     // === Socket functions ===
 
-    Socket::Socket(SockHandle_t sock, struct sockaddr_in* raddr) {
+    Socket::Socket(SockHandle_t sock, const Address* raddr) {
         this->sock = sock;
         if (raddr) {
-            this->raddr = (struct sockaddr_in*)malloc(sizeof(sockaddr_in));
-            memcpy(this->raddr, raddr, sizeof(sockaddr_in));
+            this->raddr = new Address(*raddr);
         }
     }
 
     Socket::~Socket() {
         close();
-        if (raddr) { free(raddr); }
+        if (raddr) { delete raddr; }
     }
 
     void Socket::close() {
@@ -114,7 +126,7 @@ namespace net {
     }
 
     int Socket::send(const uint8_t* data, size_t len, const Address* dest) {
-        return sendto(sock, (const char*)data, len, 0, (sockaddr*)(dest ? &dest->addr : raddr), sizeof(sockaddr_in));
+        return sendto(sock, (const char*)data, len, 0, (sockaddr*)(dest ? &dest->addr : (raddr ? &raddr->addr : NULL)), sizeof(sockaddr_in));
     }
 
     int Socket::sendstr(const std::string& str, const Address* dest) {
@@ -228,15 +240,9 @@ namespace net {
 
     // === Creation functions ===
 
-    std::shared_ptr<Listener> listen(std::string host, int port) {
+    std::shared_ptr<Listener> listen(const Address& addr) {
         // Init library if needed
         init();
-
-        // Get host address
-        struct sockaddr_in addr;
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(port);
-        if (!queryHost((uint32_t*)&addr.sin_addr.s_addr, host)) { return NULL; }
 
         // Create socket
         SockHandle_t s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -256,7 +262,7 @@ namespace net {
 #endif
 
         // Bind socket to the port
-        if (bind(s, (sockaddr*)&addr, sizeof(addr))) {
+        if (bind(s, (sockaddr*)&addr.addr, sizeof(sockaddr_in))) {
             closeSocket(s);
             throw std::runtime_error("Could not bind socket");
             return NULL;
@@ -272,21 +278,19 @@ namespace net {
         return std::make_shared<Listener>(s);
     }
 
-    std::shared_ptr<Socket> connect(std::string host, int port) {
+    std::shared_ptr<Listener> listen(std::string host, int port) {
+        return listen(Address(host, port));
+    }
+
+    std::shared_ptr<Socket> connect(const Address& addr) {
         // Init library if needed
         init();
 
-        // Get host address
-        struct sockaddr_in addr;
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(port);
-        if (!queryHost((uint32_t*)&addr.sin_addr.s_addr, host)) { return NULL; }
-        
         // Create socket
         SockHandle_t s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
         // Connect to server
-        if (::connect(s, (sockaddr*)&addr, sizeof(addr))) {
+        if (::connect(s, (sockaddr*)&addr.addr, sizeof(sockaddr_in))) {
             closeSocket(s);
             throw std::runtime_error("Could not connect");
             return NULL;
@@ -304,33 +308,19 @@ namespace net {
         return std::make_shared<Socket>(s);
     }
 
-    std::shared_ptr<Socket> openudp(std::string rhost, int rport, std::string lhost, int lport) {
+    std::shared_ptr<Socket> connect(std::string host, int port) {
+        return connect(Address(host, port));
+    }
+
+    std::shared_ptr<Socket> openudp(const Address& raddr, const Address& laddr) {
         // Init library if needed
         init();
-
-        // Get local address
-        struct sockaddr_in laddr;
-        laddr.sin_family = AF_INET;
-        laddr.sin_port = htons(lport);
-        if (!queryHost((uint32_t*)&laddr.sin_addr.s_addr, lhost)) {
-            throw std::runtime_error("Could not locate local host");
-            return NULL;
-        }
-
-        // Get remote address
-        struct sockaddr_in raddr;
-        raddr.sin_family = AF_INET;
-        raddr.sin_port = htons(rport);
-        if (!queryHost((uint32_t*)&raddr.sin_addr.s_addr, rhost)) {
-            throw std::runtime_error("Could not locate remote host");
-            return NULL;
-        }
 
         // Create socket
         SockHandle_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
         // Bind socket to local port
-        if (bind(s, (sockaddr*)&laddr, sizeof(laddr))) {
+        if (bind(s, (sockaddr*)&laddr.addr, sizeof(sockaddr_in))) {
             closeSocket(s);
             throw std::runtime_error("Could not bind socket");
             return NULL;
@@ -338,5 +328,17 @@ namespace net {
         
         // Return socket class
         return std::make_shared<Socket>(s, &raddr);
+    }
+
+    std::shared_ptr<Socket> openudp(std::string rhost, int rport, const Address& laddr) {
+        return openudp(Address(rhost, rport), laddr);
+    }
+
+    std::shared_ptr<Socket> openudp(const Address& raddr, std::string lhost, int lport) {
+        return openudp(raddr, Address(lhost, lport));
+    }
+
+    std::shared_ptr<Socket> openudp(std::string rhost, int rport, std::string lhost, int lport) {
+        return openudp(Address(rhost, rport), Address(lhost, lport));
     }
 }

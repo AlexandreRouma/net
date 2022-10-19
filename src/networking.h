@@ -33,20 +33,56 @@ namespace net {
         friend Socket;
         friend Listener;
     public:
+        /**
+         * Default constructor. Corresponds to 0.0.0.0:0.
+         */
         Address();
+
+        /**
+         * Do not instantiate this class manually. Use the provided functions.
+         * @param host Hostname or IP.
+         * @param port TCP/UDP port.
+         */
         Address(const std::string& host, int port);
+
+        /**
+         * Do not instantiate this class manually. Use the provided functions.
+         * @param ip IP in host byte order.
+         * @param port TCP/UDP port.
+         */
         Address(IP_t ip, int port);
 
+        /**
+         * Get the IP address in standard string format.
+         * @return IP address in standard string format.
+         */
         std::string getIPStr();
+
+        /**
+         * Get the IP address.
+         * @return IP address in host byte order.
+         */
         IP_t getIP();
+
+        /**
+         * Set the IP address.
+         * @param ip IP address in host byte order.
+         */
         void setIP(IP_t ip);
 
+        /**
+         * Get the TCP/UDP port.
+         * @return TCP/UDP port number.
+         */
         int getPort();
+
+        /**
+         * Set the TCP/UDP port.
+         * @param port TCP/UDP port number.
+         */
         void setPort(int port);
 
-    private:
         struct sockaddr_in addr;
-
     };
 
     enum {
@@ -64,7 +100,7 @@ namespace net {
         /**
          * Do not instantiate this class manually. Use the provided functions.
          */
-        Socket(SockHandle_t sock, struct sockaddr_in* raddr = NULL);
+        Socket(SockHandle_t sock, const Address* raddr = NULL);
         ~Socket();
 
         /**
@@ -94,7 +130,7 @@ namespace net {
         int send(const uint8_t* data, size_t len, const Address* dest = NULL);
 
         /**
-         * Send string on socket. Terminating null byte is not sent, include one in the string if you need it.
+         * Send string on socket. Terminating NULL byte is not sent, include one in the string if you need it.
          * @param str String to be sent.
          * @param dest Destination address. NULL to use the default remote address.
          * @return Number of bytes sent.
@@ -123,7 +159,7 @@ namespace net {
         int recvline(std::string& str, int maxLen = 0, int timeout = NO_TIMEOUT, Address* dest = NULL);
 
     private:
-        struct sockaddr_in* raddr = NULL;
+        Address* raddr = NULL;
         SockHandle_t sock;
         bool open = true;
 
@@ -150,7 +186,7 @@ namespace net {
 
         /**
          * Accept connection.
-         * @param timeout Timeout in milliseconds. 0 means no timeout.
+         * @param timeout Timeout in milliseconds. Use NO_TIMEOUT or NONBLOCKING here if needed.
          * @return Socket of the connection. NULL means timed out or closed.
          */
         std::shared_ptr<Socket> accept(Address* dest = NULL, int timeout = NO_TIMEOUT);
@@ -163,27 +199,67 @@ namespace net {
 
     /**
      * Create TCP listener.
+     * @param addr Address to listen on.
+     * @return Listener instance on success, Throws runtime_error otherwise.
+     */
+    std::shared_ptr<Listener> listen(const Address& addr);
+
+    /**
+     * Create TCP listener.
      * @param host Hostname or IP to listen on ("0.0.0.0" for Any).
      * @param port Port to listen on.
-     * @return Listener instance on success, null otherwise.
+     * @return Listener instance on success, Throws runtime_error otherwise.
      */
     std::shared_ptr<Listener> listen(std::string host, int port);
 
     /**
      * Create TCP connection.
+     * @param addr Remote address.
+     * @return Socket instance on success, Throws runtime_error otherwise.
+     */
+    std::shared_ptr<Socket> connect(const Address& addr);  
+
+    /**
+     * Create TCP connection.
      * @param host Remote hostname or IP address.
      * @param port Remote port.
-     * @return Socket instance on success, null otherwise.
+     * @return Socket instance on success, Throws runtime_error otherwise.
      */
-    std::shared_ptr<Socket> connect(std::string host, int port);
+    std::shared_ptr<Socket> connect(std::string host, int port);  
+
+    /**
+     * Create UDP socket.
+     * @param raddr Remote address.
+     * @param laddr Local address to bind the socket to.
+     * @return Socket instance on success, Throws runtime_error otherwise.
+     */
+    std::shared_ptr<Socket> openudp(const Address& raddr, const Address& laddr = Address());
+
+    /**
+     * Create UDP socket.
+     * @param rhost Remote hostname or IP address.
+     * @param rport Remote port.
+     * @param laddr Local address to bind the socket to.
+     * @return Socket instance on success, Throws runtime_error otherwise.
+     */
+    std::shared_ptr<Socket> openudp(std::string rhost, int rport, const Address& laddr);
+
+    /**
+     * Create UDP socket.
+     * @param raddr Remote address.
+     * @param lhost Local hostname or IP used to bind the socket (optional, "0.0.0.0" for Any).
+     * @param lpost Local port used to bind the socket to (optional, 0 to allocate automatically).
+     * @return Socket instance on success, Throws runtime_error otherwise.
+     */
+    std::shared_ptr<Socket> openudp(const Address& raddr, std::string lhost = "0.0.0.0", int lport = 0);
 
     /**
      * Create UDP socket.
      * @param rhost Remote hostname or IP address.
      * @param rport Remote port.
      * @param lhost Local hostname or IP used to bind the socket (optional, "0.0.0.0" for Any).
-     * @param lpost Local port used to bind the socket (optional, 0 to allocate automatically).
-     * @return Socket instance on success, null otherwise.
+     * @param lpost Local port used to bind the socket to (optional, 0 to allocate automatically).
+     * @return Socket instance on success, Throws runtime_error otherwise.
      */
-    std::shared_ptr<Socket> openudp(std::string rhost, int rport, std::string lhost = "0.0.0.0", int lport = 0);
+    std::shared_ptr<Socket> openudp(std::string rhost, int rport, std::string lhost = "0.0.0.0", int lport = 0);  
 }
