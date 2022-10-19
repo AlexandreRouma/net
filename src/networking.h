@@ -37,7 +37,7 @@ namespace net {
         Address(const std::string& host, int port);
         Address(IP_t ip, int port);
 
-        std::string getIPString();
+        std::string getIPStr();
         IP_t getIP();
         void setIP(IP_t ip);
 
@@ -107,18 +107,20 @@ namespace net {
          * @param maxLen Maximum number of bytes to read.
          * @param forceLen Read the maximum number of bytes even if it requires multiple receive operations.
          * @param timeout Timeout in milliseconds. Use NO_TIMEOUT or NONBLOCKING here if needed.
+         * @param dest Destination address. If multiple packets, this will contain the address of the last one. NULL if not used.
          * @return Number of bytes read. 0 means timed out or closed. -1 means would block or error.
          */
-        int recv(uint8_t* data, size_t maxLen, bool forceLen = false, int timeout = NO_TIMEOUT);
+        int recv(uint8_t* data, size_t maxLen, bool forceLen = false, int timeout = NO_TIMEOUT, Address* dest = NULL);
 
         /**
          * Receive line from socket.
          * @param str String to read the data into.
          * @param maxLen Maximum line length allowed, 0 for no limit.
          * @param timeout Timeout in milliseconds.  Use NO_TIMEOUT or NONBLOCKING here if needed.
+         * @param dest Destination address. If multiple packets, this will contain the address of the last one. NULL if not used.
          * @return Length of the returned string. 0 means timed out or closed. -1 means would block or error.
          */
-        int recvline(std::string& str, int maxLen = 0, int timeout = NO_TIMEOUT);
+        int recvline(std::string& str, int maxLen = 0, int timeout = NO_TIMEOUT, Address* dest = NULL);
 
     private:
         struct sockaddr_in* raddr = NULL;

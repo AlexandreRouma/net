@@ -61,7 +61,7 @@ namespace net {
         addr.sin_port = htons(port);
     }
 
-    std::string Address::getIPString() {
+    std::string Address::getIPStr() {
         char buf[128];
         IP_t ip = getIP();
         sprintf(buf, "%d.%d.%d.%d", (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
@@ -121,7 +121,7 @@ namespace net {
         return send((const uint8_t*)str.c_str(), str.length(), dest);
     }
 
-    int Socket::recv(uint8_t* data, size_t maxLen, bool forceLen, int timeout) {
+    int Socket::recv(uint8_t* data, size_t maxLen, bool forceLen, int timeout, Address* dest) {
         // Create FD set
         fd_set set;
         FD_ZERO(&set);
@@ -142,7 +142,8 @@ namespace net {
             }
 
             // Receive
-            int err = ::recv(sock, (char*)&data[read], maxLen - read, 0);
+            int addrLen = sizeof(sockaddr_in);
+            int err = ::recvfrom(sock, (char*)&data[read], maxLen - read, 0,(sockaddr*)(dest ? &dest->addr : NULL), &addrLen);
             if (err <= 0 && !WOULD_BLOCK) {
                 close();
                 return err;
@@ -153,7 +154,7 @@ namespace net {
         return read;
     }
 
-    int Socket::recvline(std::string& str, int maxLen, int timeout) {
+    int Socket::recvline(std::string& str, int maxLen, int timeout, Address* dest) {
         // Disallow nonblocking mode
         if (timeout < 0) { return -1; }
         
@@ -161,7 +162,7 @@ namespace net {
         int read = 0;
         while (true) {
             char c;
-            int err = recv((uint8_t*)&c, 1, timeout);
+            int err = recv((uint8_t*)&c, 1, false, timeout, dest);
             if (err <= 0) { return err; }
             if (c == '\n') { break; }
             str += c;
