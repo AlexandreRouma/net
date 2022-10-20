@@ -7,19 +7,16 @@
 
 int main() {
     try {
-        auto sock = net::openudp("192.168.0.255", 1024);
+        auto listener = net::listen("0.0.0.0", 1234);
 
-        uint8_t pkt[64];
-        memset(pkt, 0, sizeof(pkt));
-        *(uint16_t*)&pkt[0] = htons(0xEFFE);
-        pkt[2] = 2;
-        sock->send(pkt, sizeof(pkt));
+        auto client = listener->accept(NULL, net::NONBLOCKING);
 
-        uint8_t rpkt[1024];
-        net::Address raddr;
-        sock->recv(rpkt, sizeof(rpkt), false, net::NO_TIMEOUT, &raddr);
+        printf("Client null: %s, Is listening: %s\n", !client ? "Y":"N", listener->listening() ? "Y":"N");
 
-        printf("Receive response from %s:%d\n", raddr.getIPStr().c_str(), raddr.getPort());
+        if (client) {
+            client->sendstr("Hello!\n");
+            client->close();
+        }
     }
     catch (std::runtime_error& e) {
         fprintf(stderr, "Error: %s\n", e.what());

@@ -53,7 +53,7 @@ namespace net {
         Address(IP_t ip, int port);
 
         /**
-         * Get the IP address in standard string format.
+         * Get the IP address.
          * @return IP address in standard string format.
          */
         std::string getIPStr();
@@ -187,7 +187,7 @@ namespace net {
         /**
          * Accept connection.
          * @param timeout Timeout in milliseconds. Use NO_TIMEOUT or NONBLOCKING here if needed.
-         * @return Socket of the connection. NULL means timed out or closed.
+         * @return Socket of the connection. NULL means timed out, would block or closed.
          */
         std::shared_ptr<Socket> accept(Address* dest = NULL, int timeout = NO_TIMEOUT);
 
@@ -233,7 +233,7 @@ namespace net {
      * @param laddr Local address to bind the socket to.
      * @return Socket instance on success, Throws runtime_error otherwise.
      */
-    std::shared_ptr<Socket> openudp(const Address& raddr, const Address& laddr = Address());
+    std::shared_ptr<Socket> openudp(const Address& raddr, const Address& laddr);
 
     /**
      * Create UDP socket.

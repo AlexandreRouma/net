@@ -37,10 +37,20 @@ namespace net {
 
     void closeSocket(SockHandle_t sock) {
 #ifdef _WIN32
+        shutdown(sock, SD_BOTH);
         closesocket(sock);
 #else
         shutdown(sock, SHUT_RDWR);
         close(sock);
+#endif
+    }
+
+    void setNonblocking(SockHandle_t sock) {
+#ifdef _WIN32
+        u_long enabled = 1;
+        ioctlsocket(sock, FIONBIO, &enabled);
+#else
+        fcntl(sock, F_SETFL, O_NONBLOCK);
 #endif
     }
 
@@ -155,7 +165,7 @@ namespace net {
 
             // Receive
             int addrLen = sizeof(sockaddr_in);
-            int err = ::recvfrom(sock, (char*)&data[read], maxLen - read, 0,(sockaddr*)(dest ? &dest->addr : NULL), &addrLen);
+            int err = ::recvfrom(sock, (char*)&data[read], maxLen - read, 0,(sockaddr*)(dest ? &dest->addr : NULL), dest ? &addrLen : NULL);
             if (err <= 0 && !WOULD_BLOCK) {
                 close();
                 return err;
@@ -215,25 +225,21 @@ namespace net {
         tv.tv_usec = timeout * 1000;
 
         // Wait for data or error
-        // TODO: Support non-blockign mode
-        int err = select(sock+1, &set, NULL, &set, (timeout > 0) ? &tv : NULL);
-        if (err <= 0) { return NULL; }
+        if (timeout != NONBLOCKING) {
+            int err = select(sock+1, &set, NULL, &set, (timeout > 0) ? &tv : NULL);
+            if (err <= 0) { return NULL; }
+        }
 
         // Accept
         int addrLen = sizeof(sockaddr_in);
-        SockHandle_t s = ::accept(sock, (sockaddr*)(dest ? &dest->addr : NULL), &addrLen);
-        if (!s) {
-            stop();
+        SockHandle_t s = ::accept(sock, (sockaddr*)(dest ? &dest->addr : NULL), dest ? &addrLen : NULL);
+        if ((int)s < 0) {
+            if (!WOULD_BLOCK) { stop(); }
             return NULL;
         }
 
         // Enable nonblocking mode
-#ifdef _WIN32
-        u_long enabled = 1;
-        ioctlsocket(s, FIONBIO, &enabled);
-#else
-        fcntl(s, F_SETFL, O_NONBLOCK);
-#endif
+        setNonblocking(s);
 
         return std::make_shared<Socket>(s);
     }
@@ -274,6 +280,9 @@ namespace net {
             return NULL;
         }
 
+        // Enable nonblocking mode
+        setNonblocking(s);
+
         // Return listener class
         return std::make_shared<Listener>(s);
     }
@@ -297,12 +306,7 @@ namespace net {
         }
 
         // Enable nonblocking mode
-#ifdef _WIN32
-        u_long enabled = 1;
-        ioctlsocket(s, FIONBIO, &enabled);
-#else
-        fcntl(s, F_SETFL, O_NONBLOCK);
-#endif
+        setNonblocking(s);
 
         // Return socket class
         return std::make_shared<Socket>(s);
