@@ -270,7 +270,7 @@ namespace net {
         for (auto iface = addresses; iface; iface = iface->Next) {
             InterfaceInfo info;
             auto ip = iface->FirstUnicastAddress;
-            if (ip->Address.lpSockaddr->sa_family != AF_INET) { continue; }
+            if (!ip || ip->Address.lpSockaddr->sa_family != AF_INET) { continue; }
             info.address = ntohl(*(uint32_t*)&ip->Address.lpSockaddr->sa_data[2]);
             info.netmask = ~((1 << (32 - ip->OnLinkPrefixLength)) - 1);
             info.broadcast = info.address | (~info.netmask);
