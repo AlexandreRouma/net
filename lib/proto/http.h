@@ -1,7 +1,7 @@
 #pragma once
 #include <map>
 #include <string>
-#include "../networking.h"
+#include "../net.h"
 
 namespace net::http {
     enum Method {
