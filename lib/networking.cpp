@@ -179,18 +179,17 @@ namespace net {
 
     int Socket::recvline(std::string& str, int maxLen, int timeout, Address* dest) {
         // Disallow nonblocking mode
-        if (timeout < 0) { return -1; }
+        if (!timeout) { return -1; }
         
         str.clear();
         int read = 0;
-        while (true) {
+        while (!maxLen || read < maxLen) {
             char c;
             int err = recv((uint8_t*)&c, 1, false, timeout, dest);
             if (err <= 0) { return err; }
+            read++;
             if (c == '\n') { break; }
             str += c;
-            read++;
-            if (maxLen && read >= maxLen) { break; }
         }
         return read;
     }
