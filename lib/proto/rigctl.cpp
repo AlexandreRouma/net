@@ -1,4 +1,5 @@
 #include "rigctl.h"
+#include <math.h>
 
 namespace net::rigctl {
     Client::Client(std::shared_ptr<Socket> sock) {
@@ -263,7 +264,7 @@ namespace net::rigctl {
             }
 
             // Start handler thread
-            std::thread acceptThread(&Server::acceptWorker, this);
+            std::thread acceptThread(&Server::acceptWorker, this, sock);
             acceptThread.detach();
         }
     }
@@ -304,13 +305,13 @@ namespace net::rigctl {
         sock->sendstr(buf);
     }
 
-    void sendInt(std::shared_ptr<Socket> sock, int value) {
+    void Server::sendInt(std::shared_ptr<Socket> sock, int value) {
         char buf[128];
         sprintf(buf, "%d\n", value);
         sock->sendstr(buf);
     }
 
-    void sendFloat(std::shared_ptr<Socket> sock, double value) {
+    void Server::sendFloat(std::shared_ptr<Socket> sock, double value) {
         char buf[128];
         sprintf(buf, "%lf\n", value);
         sock->sendstr(buf);

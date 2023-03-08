@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <thread>
 
 namespace net::rigctl {
     enum Mode {
